@@ -139,6 +139,11 @@ public:
   uint64_t p_imm5() { return x(20, 5); }
   uint64_t p_imm6() { return x(20, 6); }
 
+  uint64_t uve_conf_rgD() { return x(7, 5); }
+  uint64_t uve_conf_rgBase() { return x(15, 5); }
+  uint64_t uve_conf_rgN() { return x(20, 5); }
+  uint64_t uve_conf_rgStride() { return x(27, 5); }
+
 private:
   insn_bits_t b;
   uint64_t x(int lo, int len) { return (b >> lo) & ((insn_bits_t(1) << len)-1); }
@@ -230,7 +235,7 @@ private:
 #define dirty_vs_state  STATE.sstatus->dirty(SSTATUS_VS)
 #define DO_WRITE_FREG(reg, value) (STATE.FPR.write(reg, value), dirty_fp_state)
 #define WRITE_FRD(value) WRITE_FREG(insn.rd(), value)
- 
+
 #define SHAMT (insn.i_imm() & 0x3F)
 #define BRANCH_TARGET (pc + insn.sb_imm())
 #define JUMP_TARGET (pc + insn.uj_imm())
@@ -1033,7 +1038,7 @@ static inline bool is_aligned(const unsigned val, const unsigned pos)
     VX_PARAMS(e64); \
     BODY; \
   } \
-  VI_LOOP_END 
+  VI_LOOP_END
 
 #define VI_VI_MERGE_LOOP(BODY) \
   VI_CHECK_SSS(false); \
@@ -1150,7 +1155,7 @@ static inline bool is_aligned(const unsigned val, const unsigned pos)
     VV_U_PARAMS(e64); \
     BODY; \
   } \
-  VI_LOOP_END 
+  VI_LOOP_END
 
 #define VI_VV_LOOP(BODY) \
   VI_CHECK_SSS(true) \
@@ -1168,7 +1173,7 @@ static inline bool is_aligned(const unsigned val, const unsigned pos)
     VV_PARAMS(e64); \
     BODY; \
   } \
-  VI_LOOP_END 
+  VI_LOOP_END
 
 #define VI_VX_ULOOP(BODY) \
   VI_CHECK_SSS(false) \
@@ -1186,7 +1191,7 @@ static inline bool is_aligned(const unsigned val, const unsigned pos)
     VX_U_PARAMS(e64); \
     BODY; \
   } \
-  VI_LOOP_END 
+  VI_LOOP_END
 
 #define VI_VX_LOOP(BODY) \
   VI_CHECK_SSS(false) \
@@ -1204,7 +1209,7 @@ static inline bool is_aligned(const unsigned val, const unsigned pos)
     VX_PARAMS(e64); \
     BODY; \
   } \
-  VI_LOOP_END 
+  VI_LOOP_END
 
 #define VI_VI_ULOOP(BODY) \
   VI_CHECK_SSS(false) \
@@ -1222,7 +1227,7 @@ static inline bool is_aligned(const unsigned val, const unsigned pos)
     VI_U_PARAMS(e64); \
     BODY; \
   } \
-  VI_LOOP_END 
+  VI_LOOP_END
 
 #define VI_VI_LOOP(BODY) \
   VI_CHECK_SSS(false) \
@@ -1240,7 +1245,7 @@ static inline bool is_aligned(const unsigned val, const unsigned pos)
     VI_PARAMS(e64); \
     BODY; \
   } \
-  VI_LOOP_END 
+  VI_LOOP_END
 
 // signed unsigned operation loop (e.g. mulhsu)
 #define VI_VV_SU_LOOP(BODY) \
@@ -1259,7 +1264,7 @@ static inline bool is_aligned(const unsigned val, const unsigned pos)
     VV_SU_PARAMS(e64); \
     BODY; \
   } \
-  VI_LOOP_END 
+  VI_LOOP_END
 
 #define VI_VX_SU_LOOP(BODY) \
   VI_CHECK_SSS(false) \
@@ -1277,7 +1282,7 @@ static inline bool is_aligned(const unsigned val, const unsigned pos)
     VX_SU_PARAMS(e64); \
     BODY; \
   } \
-  VI_LOOP_END 
+  VI_LOOP_END
 
 // narrow operation loop
 #define VI_VV_LOOP_NARROW(BODY) \
@@ -1630,7 +1635,7 @@ VI_VX_ULOOP({ \
 })
 
 //
-// vector: load/store helper 
+// vector: load/store helper
 //
 #define VI_STRIP(inx) \
   reg_t vreg_inx = inx;
@@ -1858,7 +1863,7 @@ reg_t index[P.VU.vlmax]; \
   P.VU.vstart->write(0);
 
 //
-// vector: amo 
+// vector: amo
 //
 #define VI_AMO(op, type, idx_type) \
   require_vector(false); \
@@ -1953,7 +1958,7 @@ reg_t index[P.VU.vlmax]; \
       default: \
         break; \
     } \
-  VI_LOOP_END 
+  VI_LOOP_END
 
 //
 // vector: vfp helper
