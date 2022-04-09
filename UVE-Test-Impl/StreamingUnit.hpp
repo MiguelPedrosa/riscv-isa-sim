@@ -8,14 +8,13 @@
 #include <vector>
 #include <type_traits>
 #include "helpers.hpp"
+#include "Dimension.hpp"
 
 /* Forward declaration of all classes so that they can appear in
   a more natural order */
 struct StreamingUnit;
 template <typename T>
 struct StreamRegister;
-struct Dimension;
-struct Modifier;
 
 struct StreamingUnit
 {
@@ -190,147 +189,7 @@ private:
   }
 };
 
-struct Dimension
-{
-  Dimension(size_t offset, size_t size, size_t stride)
-      : offset(offset), size(size), stride(stride)
-  {
-    iter_offset = offset;
-    iter_size = size;
-    iter_stride = stride;
-    iter_index = 0;
-  }
 
-  void resetIterValues()
-  {
-    // iter_offset = offset;
-    // iter_size = size;
-    // iter_stride = stride;
-    iter_index = 0;
-  }
-
-  void advance()
-  {
-    iter_index++;
-  }
-
-  bool isEOD() const
-  {
-    return iter_index >= iter_size;
-  }
-
-  size_t calcOffset() const
-  {
-    return iter_offset + iter_stride * iter_index;
-  }
-
-  bool isLastDimIteration() const
-  {
-    return iter_index + 1 == iter_size;
-  }
-
-private:
-  const size_t offset; // TODO: change type during implementation
-  const size_t size;
-  const size_t stride;
-  size_t iter_offset; // TODO: change type during implementation
-  size_t iter_size;
-  size_t iter_stride;
-  size_t iter_index;
-
-  friend class Modifier;
-};
-
-struct Modifier
-{
-  enum class Type
-  {
-    Static,
-    Indirect,
-    CfgVec
-  };
-  enum class Target
-  {
-    None,
-    Offset,
-    Size,
-    Stride
-  };
-  enum class Behaviour
-  {
-    None,
-    Increment,
-    Decrement
-  };
-
-  Modifier(Type type, Target target = Target::None, Behaviour behaviour = Behaviour::None, size_t displacement = 0)
-      : type(type), target(target), behaviour(behaviour), displacement(displacement)
-  {
-  }
-
-  void modDimension(Dimension &dim) const
-  {
-    switch (type)
-    {
-    case Type::Static:
-      modStatic(dim);
-      break;
-    case Type::Indirect:
-      modIndirect(dim);
-      break;
-    case Type::CfgVec:
-      /* Do nothing. This case gets handled in generateOffset */
-      break;
-    default:
-      assert_msg("Unhandled Type case in modifiers's modDimension", false);
-    }
-  }
-
-private:
-  /* This should be const, but we cannot create an array<Modifier> and postpone
-    the assignment if they are, so for all intents they shouldn't be altered */
-  Type type;
-  Target target;
-  Behaviour behaviour;
-  size_t displacement;
-
-  void modStatic(Dimension &dim) const
-  {
-    size_t valueChange = displacement;
-    if (behaviour == Behaviour::Increment)
-    {
-      /* Nothing changes */
-    }
-    else if (behaviour == Behaviour::Decrement)
-    {
-      valueChange *= -1;
-    }
-    else
-    {
-      assert_msg("Unexpect behaviour type for a static modifier", false);
-    }
-    if (target == Target::Offset)
-    {
-      dim.iter_offset += valueChange;
-    }
-    else if (target == Target::Size)
-    {
-      dim.iter_size += valueChange;
-    }
-    else if (target == Target::Stride)
-    {
-      dim.iter_stride += valueChange;
-    }
-    else
-    {
-      assert_msg("Unexpect target for a static modifier", false);
-    }
-  }
-
-  void modIndirect(Dimension &dim) const
-  {
-  }
-};
 
 template <typename T> auto makeStreamRegister() {
   if constexpr (std::is_same_v<T, std::uint8_t>) {
