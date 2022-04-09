@@ -6,8 +6,8 @@
 #include <variant>
 
 template <typename T>
-void configureSimpleLD(StreamingUnit &SU, size_t regIdx, void *src, size_t size,
-                       size_t stride) {
+void ss_ld(StreamingUnit &SU, size_t regIdx, void *src, size_t size,
+           size_t stride) {
   assert_msg("Tried to use a register index higher than available registers",
              regIdx < StreamingUnit::registerCount);
   SU.registers[regIdx] = makeStreamRegister<T>();
@@ -18,8 +18,8 @@ void configureSimpleLD(StreamingUnit &SU, size_t regIdx, void *src, size_t size,
   });
 }
 template <typename T>
-void configureSimpleST(StreamingUnit &SU, size_t regIdx, void *src, size_t size,
-                       size_t stride) {
+void ss_st(StreamingUnit &SU, size_t regIdx, void *src, size_t size,
+           size_t stride) {
   assert_msg("Tried to use a register index higher than available registers",
              regIdx < StreamingUnit::registerCount);
   SU.registers[regIdx] = makeStreamRegister<T>();
@@ -30,7 +30,7 @@ void configureSimpleST(StreamingUnit &SU, size_t regIdx, void *src, size_t size,
   });
 }
 
-void mv(StreamingUnit &SU, int idxDest, int idxSrc) {
+void so_v_mv(StreamingUnit &SU, int idxDest, int idxSrc) {
   std::visit(
       [](auto &dest, auto &src) {
         /* Streams can only output/input values if they are in the running
@@ -97,7 +97,7 @@ void so_a_add_fp(StreamingUnit &SU, int idxDest, int idxSrc1, int idxSrc2) {
       },
       SU.registers[idxDest], SU.registers[idxSrc1], SU.registers[idxSrc2]);
 }
-void so_a_add_sg(StreamingUnit &SU, int idxDest, int idxSrc1, int idxSrc2) {
+void so_a_mul_fp(StreamingUnit &SU, int idxDest, int idxSrc1, int idxSrc2) {
   std::visit(
       [](auto &dest, auto &src1, auto &src2) {
         /* Streams can only output/input values if they are in the running
@@ -122,12 +122,9 @@ void so_a_add_sg(StreamingUnit &SU, int idxDest, int idxSrc1, int idxSrc2) {
         /* Grab used types for storage and operation */
         using StorageType =
             typename std::remove_reference_t<decltype(src1)>::elementsType;
-        using OperationType = std::conditional_t<
-            std::is_same_v<std::uint8_t, StorageType>, std::int8_t,
-            std::conditional_t<
-                std::is_same_v<std::uint16_t, StorageType>, std::int16_t,
-                std::conditional_t<std::is_same_v<std::uint32_t, StorageType>,
-                                   std::int32_t, std::int64_t>>>;
+        using OperationType =
+            std::conditional_t<std::is_same_v<std::uint32_t, StorageType>,
+                               float, double>;
         for (size_t i = 0; i < validElementsIndex; i++) {
           auto e1 = readAS<OperationType>(elements1.at(i));
           auto e2 = readAS<OperationType>(elements2.at(i));
