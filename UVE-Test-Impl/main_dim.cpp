@@ -9,7 +9,7 @@ using std::size_t;
 int main()
 {
 	using Type = float;
-	constexpr size_t size = 8;
+	constexpr size_t size = 6;
 	Type vec[size][size];
 	Type i = 0;
 	for (size_t y = 0; y < size; y++)
@@ -18,11 +18,10 @@ int main()
 
 	std::vector<Dimension> dimensions;
 	ModsType modifiers;
-	dimensions.push_back({0, 6, 1});
+	dimensions.push_back({0, 4, 1});
+	dimensions.push_back({0, 4, size});
 	// modifiers.insert({0, Modifier(Modifier::Type::Static, Modifier::Target::Size, Modifier::Behaviour::Increment, 1)});
 	modifiers.insert({0, Modifier(Modifier::Type::CfgVec) });
-	dimensions.push_back({0, 6, size});
-	// dimensions.push_back({0, 2, 0});
  
 	for (size_t i = 0; i < (size * size + size); i++) {
 	// for (size_t i = 0; i < 100; i++) {
@@ -34,9 +33,11 @@ int main()
 			auto offset = generateOffset(dimensions);
 			auto value = *(((Type*) vec) + offset);
 			printf("Iter %lu: %f\n", i, value);
-			updateIteration(dimensions, modifiers);
 		} else {
 			printf("Iter %lu: Cannot generate content\n", i);
+			dimensions.at(0).setEndOfDimension(false);
 		}
+		if (canIterate(dimensions, modifiers))
+			updateIteration(dimensions, modifiers);
 	}
 }

@@ -167,7 +167,7 @@ bool canGenerateOffset(const std::vector<Dimension> &dimensions, const ModsType 
 
 	/* We don't check the last dimension as it cannot have a modifier attached */
   for (size_t i = 0; i < dimensions.size() - 1; i++) {
-		auto& currDim = dimensions.at(i);
+		// auto& currDim = dimensions.at(i);
 		auto currentModifierIterator = mods.find(i);
     const bool dimensionsDone = isDimensionFullyDone(dimensions.begin(), dimensions.begin() + i + 1);
 		if (dimensionsDone && currentModifierIterator != mods.end()) {
@@ -203,18 +203,11 @@ void updateIteration(std::vector<Dimension> &dimensions, const ModsType &mods)
 
     auto currentModifierIter = mods.find(i);
     const bool modifierExists = currentModifierIter != mods.end();
+    currDim.resetIndex();
+    currDim.setEndOfDimension(false);
+    dimensions.at(i + 1).advance();
     if (modifierExists) {
-      // const auto modType = currentModifierIter->second.getType();
-      // if (modType != Modifier::Type::CfgVec) {
-		    currDim.resetIndex();
-        currDim.setEndOfDimension(false);
-        dimensions.at(i + 1).advance();
-		    currentModifierIter->second.modDimension(currDim);
-      // }
-    } else {
-		  currDim.resetIndex();
-      currDim.setEndOfDimension(false);
-      dimensions.at(i + 1).advance();
+		  currentModifierIter->second.modDimension(currDim);
     }
     /* The values at lower dimensions might have been modified. As such, we need
     to reset them before next iteration */
@@ -222,6 +215,22 @@ void updateIteration(std::vector<Dimension> &dimensions, const ModsType &mods)
       dimensions.at(j).resetIterValues();
     }
 	}
+}
+
+bool canIterate(const std::vector<Dimension> &dimensions, const ModsType &modifiers) {
+  if (isStreamDone(dimensions)) {
+    return false;
+  }
+
+  for (const auto& [key, modifier] : modifiers) {
+    if (modifier.getType() == Modifier::Type::CfgVec) {
+      if (isDimensionFullyDone(dimensions.begin(), dimensions.begin() + key + 1)) {
+        return false;
+      }
+    }
+  }
+
+  return true;
 }
 
 
