@@ -8,7 +8,7 @@
 #include <numeric>
 #include <unordered_map> //TODO: Remove this after testing
 #include <vector> //TODO: Remove this after testing
-#include "helpers.hpp"
+#include "../helpers.hpp"
 using std::size_t;
 
 

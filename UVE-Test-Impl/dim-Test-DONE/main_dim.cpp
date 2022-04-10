@@ -20,11 +20,13 @@ int main()
 	ModsType modifiers;
 	dimensions.push_back({0, 4, 1});
 	dimensions.push_back({0, 4, size});
+	dimensions.push_back({0, 4, 0});
 	// modifiers.insert({0, Modifier(Modifier::Type::Static, Modifier::Target::Size, Modifier::Behaviour::Increment, 1)});
 	modifiers.insert({0, Modifier(Modifier::Type::CfgVec) });
+	modifiers.insert({1, Modifier(Modifier::Type::CfgVec) });
  
-	for (size_t i = 0; i < (size * size + size); i++) {
-	// for (size_t i = 0; i < 100; i++) {
+	// for (size_t i = 0; i < (size * size + size); i++) {
+	for (size_t i = 0; i < 100; i++) {
 		if (isStreamDone(dimensions)) {
 			printf("Iter %lu: End of Stream\n", i);
 			break;
@@ -35,7 +37,7 @@ int main()
 			printf("Iter %lu: %f\n", i, value);
 		} else {
 			printf("Iter %lu: Cannot generate content\n", i);
-			dimensions.at(0).setEndOfDimension(false);
+			clearAllEODFlags(dimensions);
 		}
 		if (canIterate(dimensions, modifiers))
 			updateIteration(dimensions, modifiers);
