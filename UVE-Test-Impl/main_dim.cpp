@@ -18,16 +18,25 @@ int main()
 
 	std::vector<Dimension> dimensions;
 	ModsType modifiers;
-	dimensions.push_back({0, 1, 1});
-	modifiers.insert({0, Modifier(Modifier::Type::Static, Modifier::Target::Size, Modifier::Behaviour::Increment, 1)});
-	dimensions.push_back({0, size, size});
-
-	for (size_t i = 0; i < (size * size + size) / 2; i++) {
-		if (auto offset = generateOffset(dimensions, modifiers)) {
-			auto value = *(((Type*) vec) + *offset);
-			printf("%f\n", value);
+	dimensions.push_back({0, 6, 1});
+	// modifiers.insert({0, Modifier(Modifier::Type::Static, Modifier::Target::Size, Modifier::Behaviour::Increment, 1)});
+	modifiers.insert({0, Modifier(Modifier::Type::CfgVec) });
+	dimensions.push_back({0, 6, size});
+	// dimensions.push_back({0, 2, 0});
+ 
+	for (size_t i = 0; i < (size * size + size); i++) {
+	// for (size_t i = 0; i < 100; i++) {
+		if (isStreamDone(dimensions)) {
+			printf("Iter %lu: End of Stream\n", i);
+			break;
+		}
+		if (canGenerateOffset(dimensions, modifiers)) {
+			auto offset = generateOffset(dimensions);
+			auto value = *(((Type*) vec) + offset);
+			printf("Iter %lu: %f\n", i, value);
+			updateIteration(dimensions, modifiers);
 		} else {
-			printf("Out of content\n");
+			printf("Iter %lu: Cannot generate content\n", i);
 		}
 	}
 }
