@@ -9,6 +9,7 @@
         "-Wall",
         "-pedantic",
         "-std=c++17",
+        "Dimension.cpp",
         "-g",
         "${fileDirname}/${fileBasename}",
         "-o",
