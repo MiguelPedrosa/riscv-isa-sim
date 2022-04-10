@@ -1,8 +1,8 @@
 #include "Dimension.hpp"
 
 /* Start of Dimension function definitions */
-Dimension::Dimension(size_t offset, size_t size, size_t stride)
-    : offset(offset), size(size), stride(stride)
+Dimension::Dimension(void* offset, std::size_t size, std::size_t stride)
+  : offset(offset), size(size), stride(stride)
 {
   iter_offset = offset;
   iter_size = size;
@@ -47,17 +47,18 @@ void Dimension::setEndOfDimension(bool b)
   endOfDimension = b;
 }
 
-size_t Dimension::calcOffset() const
+std::size_t Dimension::calcOffset() const
 {
-  return iter_offset + iter_stride * iter_index;
+  /* TODO: Re-add offset when moving to spike */
+  // return iter_offset + iter_stride * iter_index;
+  return iter_stride * iter_index;
 }
 
 /* Start of Modifier function definitions */
 
-void Modifier::modDimension(Dimension &dim) const
+void Modifier::modDimension(Dimension& dim) const
 {
-  switch (type)
-  {
+  switch (type) {
   case Type::Static:
     modStatic(dim);
     break;
@@ -72,43 +73,36 @@ void Modifier::modDimension(Dimension &dim) const
   }
 }
 
-void Modifier::modStatic(Dimension &dim) const
+void Modifier::modStatic(Dimension& dim) const
 {
-  size_t valueChange = displacement;
-  if (behaviour == Behaviour::Increment)
-  {
+  std::size_t valueChange = displacement;
+  if (behaviour == Behaviour::Increment) {
     /* Nothing changes */
   }
-  else if (behaviour == Behaviour::Decrement)
-  {
+  else if (behaviour == Behaviour::Decrement) {
     valueChange *= -1;
   }
-  else
-  {
+  else {
     assert_msg("Unexpect behaviour type for a static modifier", false);
   }
 
-  if (target == Target::Offset)
-  {
-    dim.iter_offset += valueChange;
+  if (target == Target::Offset) {
+    /* TODO: enable this when moving to spike */
+    // dim.iter_offset += valueChange;
   }
-  else if (target == Target::Size)
-  {
+  else if (target == Target::Size) {
     dim.iter_size += valueChange;
   }
-  else if (target == Target::Stride)
-  {
+  else if (target == Target::Stride) {
     dim.iter_stride += valueChange;
   }
-  else
-  {
+  else {
     assert_msg("Unexpect target for a static modifier", false);
   }
 }
 
-void Modifier::modIndirect(Dimension &dim) const
-{
-}
+void Modifier::modIndirect(Dimension& dim) const
+{}
 
 Modifier::Type Modifier::getType() const
 {
