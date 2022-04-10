@@ -9,9 +9,9 @@ int main()
 {
   StreamingUnit SU;
 
-  constexpr size_t size = 8;
-  using ComputationType = double;
-  using StorageType = std::uint64_t;
+  constexpr size_t size = 10;
+  using ComputationType = float;
+  using StorageType = std::uint32_t;
 
   ComputationType x[size][size];
   // ComputationType y[size][size];
@@ -36,10 +36,10 @@ int main()
   //   ss_app_mod_size_inc(SU, 3);
   //    ss_end<StorageType>(SU, 3, 0, size, size);
 
-  ss_sta_ld<StorageType>(SU, 1, x, 6, 1);
-    // ss_app_mod_size_inc(SU, 1, 1);
-    ss_cfg_vec(SU, 1);
-      ss_end(SU, 1, 0, 6, size);
+  ss_sta_ld<StorageType>(SU, 1, x, 1, 1);
+    ss_app_mod_size_inc(SU, 1, 1);
+    // ss_cfg_vec(SU, 1);
+      ss_end(SU, 1, 0, size, size);
 
   modifyRegister(SU, 1, [](auto& reg) {
     while (!reg.hasStreamFinished()) {
@@ -48,10 +48,11 @@ int main()
         std::cout << readAS<ComputationType>(v) << ", ";
       });
       std::cout << '\n';
-      if (reg.isEndOfDimensionOfDim(0)) {
-        reg.clearEndOfDimensionOfDim(0);
-        std::cout << "Cleared eod for dim 0\n";
-      }
+      // if (reg.isEndOfDimensionOfDim(0)) {
+      //   reg.clearEndOfDimensionOfDim(0);
+      //   reg.tryIterate();
+      //   std::cout << "Cleared eod for dim 0\n";
+      // }
     }
   });
   // ss_ld<StorageType>(SU, 2, y, size, 1);

@@ -53,7 +53,7 @@ struct StreamRegister
     const auto modIndex = dimensions.size() - 1;
     auto iter = modifiers.find(modIndex);
     assert_msg("Trying to add a modifier, when one alreay exists in this index", iter == modifiers.end());
-    modifiers.insert({modIndex, mod});
+    modifiers.insert({ modIndex, mod });
   }
 
   void addDimension(Dimension dim)
@@ -106,13 +106,26 @@ struct StreamRegister
     return status == RegisterStatus::Finished;
   }
 
-  void clearEndOfDimensionOfDim(std::size_t i) {
+  void clearEndOfDimensionOfDim(std::size_t i)
+  {
     assert_msg("Trying to clear eof of invalid dimension", i < dimensions.size() - 1);
+    /* Cannot clear this flag when the stream has finished, it would prevent us from knowing that */
+    if (isStreamDone())
+      return;
     dimensions.at(i).setEndOfDimension(false);
   }
-  bool isEndOfDimensionOfDim(std::size_t i) const {
+
+  bool isEndOfDimensionOfDim(std::size_t i) const
+  {
     assert_msg("Trying to check eof of invalid dimension", i < dimensions.size() - 1);
     return dimensions.at(i).isEndOfDimension();
+  }
+
+  void tryIterate()
+  {
+    if (canIterate()) {
+      updateIteration();
+    }
   }
 
 
