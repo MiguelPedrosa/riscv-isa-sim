@@ -2,10 +2,12 @@
 #define DIMENSION_HPP
 
 
+#include <algorithm>
 #include <cstddef> // std::size_t
-#include <unordered_map>// TODO: Remove this after testing
-#include <vector>// TODO: Remove this after testing
 #include <optional>
+#include <numeric>
+#include <unordered_map> //TODO: Remove this after testing
+#include <vector> //TODO: Remove this after testing
 #include "helpers.hpp"
 using std::size_t;
 
@@ -18,29 +20,40 @@ struct Dimension
     iter_size = size;
     iter_stride = stride;
     iter_index = 0;
+    endOfDimension = false;
+  }
+
+  void resetIndex() {
+    iter_index = 0;
   }
 
   void resetIterValues() {
-    // iter_offset = offset;
-    // iter_size = size;
-    // iter_stride = stride;
-    iter_index = 0;
+    iter_offset = offset;
+    iter_size = size;
+    iter_stride = stride;
   }
 
   void advance() {
     iter_index++;
   }
 
-  bool isEOD() const {
+  bool isLastIteration() const {
+    return iter_index + 1 == iter_size;
+  }
+  bool triggerIterationUpdate() const {
     return iter_index >= iter_size;
+  }
+
+  bool isEndOfDimension() const {
+    return endOfDimension;
+  }
+
+  void setEndOfDimension(bool b) {
+    endOfDimension = b;
   }
 
   size_t calcOffset() const {
     return iter_offset + iter_stride * iter_index;
-  }
-
-  bool isLastDimIteration() const {
-    return iter_index + 1 == iter_size;
   }
 
 private:
@@ -51,6 +64,7 @@ private:
   size_t iter_size;
   size_t iter_stride;
   size_t iter_index;
+  bool endOfDimension;
 
   friend class Modifier;
 };
@@ -63,13 +77,10 @@ struct Modifier
 
   Modifier(Type type, Target target = Target::None, Behaviour behaviour = Behaviour::None, size_t displacement = 0)
       : type(type), target(target), behaviour(behaviour), displacement(displacement)
-  {
-  }
+  {}
 
-  void modDimension(Dimension &dim) const
-  {
-    switch (type)
-    {
+  void modDimension(Dimension &dim) const {
+    switch (type) {
     case Type::Static:
       modStatic(dim);
       break;
@@ -84,13 +95,15 @@ struct Modifier
     }
   }
 
+  Type getType() const {
+    return type;
+  }
+
 private:
-  /* This should be const, but we cannot create an array<Modifier> and postpone
-    the assignment if they are, so for all intents they shouldn't be altered */
-  Type type;
-  Target target;
-  Behaviour behaviour;
-  size_t displacement;
+  const Type type;
+  const Target target;
+  const Behaviour behaviour;
+  const size_t displacement;
 
   void modStatic(Dimension &dim) const {
     size_t valueChange = displacement;
@@ -122,55 +135,93 @@ using ModsType = std::unordered_map<int, Modifier>;
 
 
 
-std::optional<size_t>
-generateOffset(std::vector<Dimension> &dims, ModsType &mods)
-{
-	auto dimsSize = dims.size();
-	/* We cannot generate any more content after the last iteration of the last dimensions */
-	if (dims.at(dimsSize - 1).isEOD()) {
-		return std::nullopt;
+size_t generateOffset(std::vector<Dimension> &dimensions) {
+	/* Result will be the final accumulation of all offset calculated per dimension */
+	return std::accumulate(dimensions.begin(), dimensions.end(), 0, [](size_t acc, Dimension& dim) {
+      dim.setEndOfDimension(dim.isLastIteration());
+      return acc + dim.calcOffset();
+    });
+}
+
+bool isDimensionFullyDone(std::vector<Dimension>::const_iterator start, std::vector<Dimension>::const_iterator end) {
+	return std::accumulate(start, end, true, [](bool acc, const Dimension& dim) {
+      return acc && dim.isEndOfDimension();
+    });
+}
+
+bool isStreamDone(const std::vector<Dimension> &dimensions) {
+  return isDimensionFullyDone(dimensions.begin(), dimensions.end());
+}
+
+bool canGenerateOffset(const std::vector<Dimension> &dimensions, const ModsType &mods) {
+  /* There are two situations that prevent us from generating offsets:
+  1) We are at the last iteration of the outermost dimension
+  2) We just finished the last iteration of a dimension and there is a configure
+  stream vector modifier at that same dimension. In these cases, the generation can
+  only resume after an exterior call to resetIndex() */
+
+	/* The outermost dimension is the last one in the container */
+	if (isStreamDone(dimensions)) {
+		return false;
 	}
 
-	/* result will be the final accumulation of all offset calculated per dimension */
-	size_t result = 0;
-	/* Just like a nested for loop, we start calculating offset from the outermost loop/dimension
-		Dimension 0 is calculated outside, because it will always be calculated and it cannot be associated 
-		with a modifier that will alterate a dimension below it */
-	for (ssize_t i = dimsSize - 1; i > 0; i--) {
-		/* calculate current dimension's offset */
-		auto& currDim = dims.at(i);
-		result += currDim.calcOffset();
-	}
-	auto& dim0 = dims.at(0);
-	result += dim0.calcOffset();
-
-	/* Incrementing works by always stating with the lower dimension and incrementing the next if
-		the current reaches an overflow, at which point for the current dimension, values are reset */
-	dim0.advance();
-	if (dimsSize > 1) {
-		for (size_t i = 0; i < dimsSize - 1; i++) {
-			auto& currDim = dims.at(i);
-			auto& nextDim = dims.at(i + 1);
-			if (currDim.isEOD()) {
-				// TODO: HANDLE VecCfg modifiers. Be careful of dim0.advance()
-				/* A CfgVec modifier prevents us from generating new offsets when the current dimension is done.
-					As such, we can only return content after an exterior call to resetIterValues() */
-				currDim.resetIterValues();
-				nextDim.advance();
-				/* */
-				auto currMod = mods.find(i);
-				// if (currMod.type == Modifier::Type::CfgVec) {
-				// 	return std::nullopt;
-				// }
-				if (currMod != mods.end()) {
-					/* If modifiers exists, we have to modify this dimension before its next iteration */
-					currMod->second.modDimension(currDim);
-				}
+	/* We don't check the last dimension as it cannot have a modifier attached */
+  for (size_t i = 0; i < dimensions.size() - 1; i++) {
+		auto& currDim = dimensions.at(i);
+		auto currentModifierIterator = mods.find(i);
+    const bool dimensionsDone = isDimensionFullyDone(dimensions.begin(), dimensions.begin() + i + 1);
+		if (dimensionsDone && currentModifierIterator != mods.end()) {
+      auto type = currentModifierIterator->second.getType();
+			if (type == Modifier::Type::CfgVec) {
+				return false;
 			}
 		}
 	}
 
-	return result;
+  return true;
+}
+
+void updateIteration(std::vector<Dimension> &dimensions, const ModsType &mods)
+{
+  if (isStreamDone(dimensions)) {
+    return;
+  }
+  /* Iteration starts from the innermost dimension and updates the next if the current
+  reaches an overflow; at which point, for the current dimension, the values are reset */
+	dimensions.at(0).advance();
+
+  /* No extra processing is needed if there is only 1 dimension */
+	if (dimensions.size() == 1) {
+    return;
+	}
+	
+  for (size_t i = 0; i < dimensions.size() - 1; i++) {
+		auto& currDim = dimensions.at(i);
+    /* The following calculation are only necessary if we ARE in the
+    last iteration of a dimension */
+		if ( !currDim.triggerIterationUpdate()) continue;
+
+    auto currentModifierIter = mods.find(i);
+    const bool modifierExists = currentModifierIter != mods.end();
+    if (modifierExists) {
+      // const auto modType = currentModifierIter->second.getType();
+      // if (modType != Modifier::Type::CfgVec) {
+		    currDim.resetIndex();
+        currDim.setEndOfDimension(false);
+        dimensions.at(i + 1).advance();
+		    currentModifierIter->second.modDimension(currDim);
+      // }
+    } else {
+		  currDim.resetIndex();
+      currDim.setEndOfDimension(false);
+      dimensions.at(i + 1).advance();
+    }
+    /* The values at lower dimensions might have been modified. As such, we need
+    to reset them before next iteration */
+    for (size_t j = 0; j < i; j++) {
+      dimensions.at(j).resetIterValues();
+    }
+	}
 }
 
 
