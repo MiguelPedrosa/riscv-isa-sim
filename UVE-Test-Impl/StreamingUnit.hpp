@@ -4,36 +4,17 @@
 #include <array>
 #include <cstddef> // std::size_t
 #include <unordered_map>
+#include <algorithm>
+#include <numeric>
 #include <variant>
 #include <vector>
 #include <type_traits>
 #include "helpers.hpp"
 #include "Dimension.hpp"
 
-/* Forward declaration of all classes so that they can appear in
-  a more natural order */
-struct StreamingUnit;
-template <typename T>
-struct StreamRegister;
 
-struct StreamingUnit
-{
-  /* UVE specification is to have 32 streaming/vectorial registers */
-  static constexpr std::size_t registerCount = 32;
-  /* There are 2 types at play when implementing the UVE specification. A storage
-  type, which is how values get stored, and a computation type, the type a value
-  should have when doing computations. Using a variant allows us to have almost
-  full type-safety when storing/retriving values, including how many elements can
-  be contained in a register at a given moment. During computations, we might need
-  a raw cast to a signed or floating-point value.  */
-  using RegisterType = std::variant<StreamRegister<std::uint8_t>,
-                                    StreamRegister<std::uint16_t>,
-                                    StreamRegister<std::uint32_t>,
-                                    StreamRegister<std::uint64_t>>;
-  /* Property defined as public so that this class can be small and have most
-  operations happen outside of it */
-  std::array<RegisterType, registerCount> registers;
-};
+enum class RegisterType { Temporary, Load, Store, Duplicate };
+enum class RegisterStatus { NotConfigured, Running, Finished };
 
 /* T is one of std::uint8_t, std::uint16_t, std::uint32_t or std::uint64_t and
   represents the type of the elements of a stream at a given moment. It is the
@@ -49,27 +30,31 @@ struct StreamRegister
   static constexpr size_t maxDimensions = 8;
   static constexpr size_t maxModifiers = maxDimensions - 1;
 
-  using elementsType = T;
+  using ElementsType = T;
   /* During computations, we test if two streams have the same element width
   using this property */
-  static constexpr size_t elementsWidth = sizeof(elementsType);
+  static constexpr size_t elementsWidth = sizeof(ElementsType);
   /* This property limits how many elements can be manipulated during a
   computation and also how many can be loaded/stored at a time */
   static constexpr size_t maxAmountElements = registerLength / elementsWidth;
 
-  enum class RegisterType
+
+
+  StreamRegister(RegisterType t = RegisterType::Temporary, ElementsType v = 0)
+    : modifiers{}, type(t)
   {
-    Temporary,
-    Load,
-    Store,
-    Duplicate
-  };
-  enum class RegisterStatus
+    status = RegisterStatus::NotConfigured;
+    duplicateValue = v;
+  }
+
+  void addModifier(Modifier mod)
   {
-    NotConfigured,
-    Running,
-    Finished
-  };
+    /* A recently added modifier alters the last inserted dimension */
+    const auto modIndex = dimensions.size() - 1;
+    auto iter = modifiers.find(modIndex);
+    assert_msg("Trying to add a modifier, when one alreay exists in this index", iter == modifiers.end());
+    modifiers.insert({modIndex, mod});
+  }
 
   void addDimension(Dimension dim)
   {
@@ -87,42 +72,56 @@ struct StreamRegister
   void endConfiguration()
   {
     status = RegisterStatus::Running;
-    if (this->type == RegisterType::Load)
-    {
+    if (this->type == RegisterType::Load) {
       updateAsLoad();
+    }
+    else if (this->type == RegisterType::Duplicate) {
+      updateAsDuplicate();
     }
   }
 
-  void updateStreamValues()
+  std::vector<ElementsType> getElements(bool causesUpdate)
   {
-    if (this->type == RegisterType::Load)
-    {
-      updateAsLoad();
+    assert_msg("Trying to get values from a store stream", type != RegisterType::Store);
+
+    auto ret = elements;
+    if (causesUpdate) {
+      updateStreamValues();
     }
-    else if (this->type == RegisterType::Store)
-    {
-      updateAsStore();
-    }
-    else if (this->type == RegisterType::Temporary)
-    {
-      // Do nothing ...
-    }
-    else if (this->type == RegisterType::Duplicate)
-    {
-      // TODO: Duplicate value
-    }
-    else
-    {
-      assert_msg("Unhandled type of stream was asked to update", false);
+    return ret;
+  }
+
+  void setElements(bool causesUpdate, std::vector<ElementsType> e)
+  {
+    assert_msg("Trying to get values from a load stream", type != RegisterType::Load);
+
+    elements = e;
+    if (causesUpdate) {
+      updateStreamValues();
     }
   }
+
+  bool hasStreamFinished() const
+  {
+    return status == RegisterStatus::Finished;
+  }
+
+  void clearEndOfDimensionOfDim(std::size_t i) {
+    assert_msg("Trying to clear eof of invalid dimension", i < dimensions.size() - 1);
+    dimensions.at(i).setEndOfDimension(false);
+  }
+  bool isEndOfDimensionOfDim(std::size_t i) const {
+    assert_msg("Trying to check eof of invalid dimension", i < dimensions.size() - 1);
+    return dimensions.at(i).isEndOfDimension();
+  }
+
 
 private:
   /* Although the more semantically correct choice would be an array, using a
   vector allows us to avoid an index pointer to the last valid element. This design
   allows us to assume every element in the container is valid and any index checking
   operations can be done by calling the vector::size() method */
-  std::vector<elementsType> elements;
+  std::vector<ElementsType> elements;
   /* Same ordeal as above. Although the amount of dimensions is capped, we can avoid
   indexing by just calling the size method */
   std::vector<Dimension> dimensions;
@@ -131,78 +130,232 @@ private:
   index to its modifier. When updating stream the iterators, we can test if a dimension
   for the given index exists before the calculations */
   std::unordered_map<int, Modifier> modifiers;
-  RegisterType type = RegisterType::Temporary;
-  RegisterStatus status = RegisterStatus::NotConfigured;
+  RegisterType type;
+  RegisterStatus status;
+  /* In case this stream is a duplicate stream, we store here the value we intent
+  to duplicate each time an operation is performed */
+  ElementsType duplicateValue;
+
+
+  void updateStreamValues()
+  {
+    if (this->type == RegisterType::Load) {
+      updateAsLoad();
+    }
+    else if (this->type == RegisterType::Store) {
+      updateAsStore();
+    }
+    else if (this->type == RegisterType::Temporary) {
+      // Do nothing ...
+    }
+    else if (this->type == RegisterType::Duplicate) {
+      updateAsDuplicate();
+    }
+    else {
+      assert_msg("Unhandled type of stream was asked to update", false);
+    }
+  }
+
+
+  size_t generateOffset()
+  {
+    /* Result will be the final accumulation of all offset calculated per dimension */
+    return std::accumulate(dimensions.begin(), dimensions.end(), 0, [](size_t acc, Dimension& dim) {
+      dim.setEndOfDimension(dim.isLastIteration());
+      return acc + dim.calcOffset(); });
+  }
+
+  bool isDimensionFullyDone(const std::vector<Dimension>::const_iterator start, const std::vector<Dimension>::const_iterator end) const
+  {
+    return std::accumulate(start, end, true, [](bool acc, const Dimension& dim) { return acc && dim.isEndOfDimension(); });
+  }
+
+  bool isStreamDone() const
+  {
+    return isDimensionFullyDone(dimensions.begin(), dimensions.end());
+  }
+
+  bool canGenerateOffset() const
+  {
+    /* There are two situations that prevent us from generating offsets:
+    1) We are at the last iteration of the outermost dimension
+    2) We just finished the last iteration of a dimension and there is a configure
+    stream vector modifier at that same dimension. In these cases, the generation can
+    only resume after an exterior call to resetIndex() */
+
+    /* The outermost dimension is the last one in the container */
+    if (isStreamDone()) {
+      return false;
+    }
+
+    /* We don't check the last dimension as it cannot have a modifier attached */
+    for (size_t i = 0; i < dimensions.size() - 1; i++) {
+      // auto& currDim = dimensions.at(i);
+      auto currentModifierIterator = modifiers.find(i);
+      const bool dimensionsDone = isDimensionFullyDone(dimensions.begin(), dimensions.begin() + i + 1);
+      if (dimensionsDone && currentModifierIterator != modifiers.end()) {
+        auto type = currentModifierIterator->second.getType();
+        if (type == Modifier::Type::CfgVec) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
+  void updateIteration()
+  {
+    if (isStreamDone()) {
+      return;
+    }
+    /* Iteration starts from the innermost dimension and updates the next if the current
+    reaches an overflow; at which point, for the current dimension, the values are reset */
+    dimensions.at(0).advance();
+
+    /* No extra processing is needed if there is only 1 dimension */
+    if (dimensions.size() == 1) {
+      return;
+    }
+
+    for (size_t i = 0; i < dimensions.size() - 1; i++) {
+      auto& currDim = dimensions.at(i);
+      /* The following calculation are only necessary if we ARE in the
+      last iteration of a dimension */
+      if (!currDim.triggerIterationUpdate())
+        continue;
+
+      auto currentModifierIter = modifiers.find(i);
+      const bool modifierExists = currentModifierIter != modifiers.end();
+      currDim.resetIndex();
+      currDim.setEndOfDimension(false);
+      dimensions.at(i + 1).advance();
+      if (modifierExists) {
+        currentModifierIter->second.modDimension(currDim);
+      }
+      /* The values at lower dimensions might have been modified. As such, we need
+      to reset them before next iteration */
+      for (size_t j = 0; j < i; j++) {
+        dimensions.at(j).resetIterValues();
+      }
+    }
+  }
+
+  bool canIterate() const
+  {
+    if (isStreamDone()) {
+      return false;
+    }
+
+    for (const auto& [key, modifier] : modifiers) {
+      if (modifier.getType() == Modifier::Type::CfgVec) {
+        if (isDimensionFullyDone(dimensions.begin(), dimensions.begin() + key + 1)) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
+  void clearAllEODFlags()
+  {
+    for (auto& dim : dimensions) {
+      dim.setEndOfDimension(false);
+    }
+  }
 
   void updateAsLoad()
   {
-    /* TODO: For now, only focus on first dimension */
-    auto &dim = dimensions.at(0);
-    if (!dim.canProduceElements())
-    {
+    if (isStreamDone()) {
       status = RegisterStatus::Finished;
       return;
     }
-    // Get how many elements this dimension can still produce
-    const size_t remaindingProducibleElements = dim.size - dim.iter.index;
-    // Calculate the max amount elements we can produce per iteration
-    const std::size_t eCount = std::min(remaindingProducibleElements, maxAmountElements);
+
     elements.clear();
-    for (std::size_t i = 0; i < eCount; i++)
-    {
-      auto *offset = static_cast<elementsType *>(dim.offset);
-      auto value = offset[(i + dim.iter.index) * dim.stride];
+    elements.reserve(maxAmountElements);
+
+    std::size_t eCount = maxAmountElements;
+    while (eCount > 0 && canGenerateOffset()) {
+      std::size_t offset = generateOffset();
+      /* TODO: Change this offset when moving to spike */
+      ElementsType* address = ((ElementsType*)dimensions.at(0).getOffset()) + offset;
+      auto value = readAS<ElementsType>(*address);
       elements.push_back(value);
-    }
-    dim.iter.index += eCount;
-    if (!dim.canProduceElements())
-    {
-      status = RegisterStatus::Finished;
+
+      eCount--;
+      if (canIterate())
+        updateIteration();
     }
   }
 
   void updateAsStore()
   {
-    /* TODO: For now, only focus on first dimension */
-    auto &dim = dimensions.at(0);
-    if (!dim.canProduceElements())
-    {
+    if (isStreamDone()) {
       status = RegisterStatus::Finished;
       return;
     }
-    // Get how many elements this dimension can still produce
-    const size_t remaindingProducibleElements = dim.size - dim.iter.index;
-    // Calculate the max amount elements we can extract per iteration
-    const std::size_t eCount = std::min(remaindingProducibleElements, elements.size());
-    for (std::size_t i = 0; i < eCount; i++)
-    {
-      auto *offset = static_cast<elementsType *>(dim.offset);
-      auto value = elements.at(i);
-      offset[(i + dim.iter.index) * dim.stride] = value;
+    std::size_t eCount = maxAmountElements;
+    while (eCount > 0 && canGenerateOffset()) {
+      std::size_t offset = generateOffset();
+      /* TODO: Change this offset when moving to spike */
+      ElementsType* address = ((ElementsType*)dimensions.at(0).getOffset()) + offset;
+      auto value = elements.front();
+      elements.erase(elements.begin(), elements.begin() + 1);
+      *address = readAS<ElementsType>(value);
+
+      eCount--;
+      if (canIterate())
+        updateIteration();
     }
     elements.clear();
-    dim.iter.index += eCount;
-    if (!dim.canProduceElements())
-    {
-      status = RegisterStatus::Finished;
-    }
   }
+
+  void updateAsDuplicate()
+  {
+    elements = std::vector(maxAmountElements, duplicateValue);
+  }
+
+
 };
 
+struct StreamingUnit
+{
+  /* UVE specification is to have 32 streaming/vectorial registers */
+  static constexpr std::size_t registerCount = 32;
+  /* There are 2 types at play when implementing the UVE specification. A storage
+  type, which is how values get stored, and a computation type, the type a value
+  should have when doing computations. Using a variant allows us to have almost
+  full type-safety when storing/retriving values, including how many elements can
+  be contained in a register at a given moment. During computations, we might need
+  a raw cast to a signed or floating-point value.  */
+  using RegisterType = std::variant<StreamRegister<std::uint8_t>,
+    StreamRegister<std::uint16_t>,
+    StreamRegister<std::uint32_t>,
+    StreamRegister<std::uint64_t>>;
+  /* Property defined as public so that this class can be small and have most
+  operations happen outside of it */
+  std::array<RegisterType, registerCount> registers;
+};
 
-
-template <typename T> auto makeStreamRegister() {
+template <typename T>
+auto makeStreamRegister(RegisterType type = RegisterType::Temporary, T init = 0)
+{
   if constexpr (std::is_same_v<T, std::uint8_t>) {
-    return StreamRegister<std::uint8_t>{};
-  } else if constexpr (std::is_same_v<T, std::uint16_t>) {
-    return StreamRegister<std::uint16_t>{};
-  } else if constexpr (std::is_same_v<T, std::uint32_t>) {
-    return StreamRegister<std::uint32_t>{};
-  } else if constexpr (std::is_same_v<T, std::uint64_t>) {
-    return StreamRegister<std::uint64_t>{};
-  } else {
+    return StreamRegister<std::uint8_t>{type, init};
+  }
+  else if constexpr (std::is_same_v<T, std::uint16_t>) {
+    return StreamRegister<std::uint16_t>{type, init};
+  }
+  else if constexpr (std::is_same_v<T, std::uint32_t>) {
+    return StreamRegister<std::uint32_t>{type, init};
+  }
+  else if constexpr (std::is_same_v<T, std::uint64_t>) {
+    return StreamRegister<std::uint64_t>{type, init};
+  }
+  else {
     static_assert(always_false_v<T>,
-                  "Cannot create register with this element width");
+      "Cannot create register with this element width");
   }
 }
 
