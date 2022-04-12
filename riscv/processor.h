@@ -14,6 +14,7 @@
 #include "debug_rom_defines.h"
 #include "entropy_source.h"
 #include "csrs.h"
+#include "StreamingUnit.h" // UVE Implementation
 
 class processor_t;
 class mmu_t;
@@ -651,6 +652,7 @@ public:
   };
 
   vectorUnit_t VU;
+  StreamingUnit SU;
 };
 
 #endif
