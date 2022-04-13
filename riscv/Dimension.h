@@ -6,14 +6,7 @@
 
 struct Dimension
 {
-  /* TODO: Change offset type when moving to spike */
-  Dimension(void* offset, std::size_t size, std::size_t stride);
-
-  void* getOffset() const
-  {
-    /* TODO: Delete this when moving to spike */
-    return offset;
-  }
+  Dimension(std::size_t offset, std::size_t size, std::size_t stride);
 
   void resetIndex();
 
@@ -29,13 +22,13 @@ struct Dimension
 
   void setEndOfDimension(bool b);
 
-  std::size_t calcOffset() const;
+  std::size_t calcOffset(std::size_t width) const;
 
 private:
-  void* const offset; // TODO: change type during implementation
+  const std::size_t offset;
   const std::size_t size;
   const std::size_t stride;
-  void* iter_offset; // TODO: change type during implementation
+  std::size_t iter_offset;
   std::size_t iter_size;
   std::size_t iter_stride;
   std::size_t iter_index;

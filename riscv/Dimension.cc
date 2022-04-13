@@ -1,7 +1,8 @@
-#include "Dimension.hpp"
+#include "Dimension.h"
+#include <iostream>
 
 /* Start of Dimension function definitions */
-Dimension::Dimension(void* offset, std::size_t size, std::size_t stride)
+Dimension::Dimension(std::size_t offset, std::size_t size, std::size_t stride)
   : offset(offset), size(size), stride(stride)
 {
   iter_offset = offset;
@@ -47,11 +48,9 @@ void Dimension::setEndOfDimension(bool b)
   endOfDimension = b;
 }
 
-std::size_t Dimension::calcOffset() const
+std::size_t Dimension::calcOffset(std::size_t width) const
 {
-  /* TODO: Re-add offset when moving to spike */
-  // return iter_offset + iter_stride * iter_index;
-  return iter_stride * iter_index;
+  return iter_offset + iter_stride * iter_index * width;
 }
 
 /* Start of Modifier function definitions */
@@ -87,8 +86,7 @@ void Modifier::modStatic(Dimension& dim) const
   }
 
   if (target == Target::Offset) {
-    /* TODO: enable this when moving to spike */
-    // dim.iter_offset += valueChange;
+    dim.iter_offset += valueChange;
   }
   else if (target == Target::Size) {
     dim.iter_size += valueChange;
