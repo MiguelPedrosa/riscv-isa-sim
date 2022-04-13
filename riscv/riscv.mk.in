@@ -1271,6 +1271,11 @@ riscv_insn_ext_uve = \
 	ss_st_d \
 	so_a_add_fp \
 	so_b_nc \
+	ss_end \
+	ss_app_mod_siz_inc \
+	ss_sta_st_d \
+	ss_sta_ld_d \
+	so_v_dp_d \
 
 riscv_insn_list = \
     $(riscv_insn_ext_uve) \
