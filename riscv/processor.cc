@@ -23,6 +23,9 @@
 #undef STATE
 #define STATE state
 
+
+processor_t *globalProcessor;
+
 processor_t::processor_t(isa_parser_t isa, const char* varch,
                          simif_t* sim, uint32_t id, bool halt_on_reset,
                          FILE* log_file, std::ostream& sout_)
@@ -31,6 +34,7 @@ processor_t::processor_t(isa_parser_t isa, const char* varch,
   log_file(log_file), sout_(sout_.rdbuf()), halt_on_reset(halt_on_reset),
   impl_table(256, false), last_pc(1), executions(1)
 {
+  globalProcessor = this;
   VU.p = this;
 
 #ifndef __SIZEOF_INT128__
