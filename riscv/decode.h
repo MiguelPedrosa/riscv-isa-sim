@@ -143,6 +143,11 @@ public:
   uint64_t uve_conf_rgBase() { return x(15, 5); }
   uint64_t uve_conf_rgN() { return x(20, 5); }
   uint64_t uve_conf_rgStride() { return x(27, 5); }
+  uint64_t uve_comp_dest() { return x(7, 5); }
+  uint64_t uve_comp_src1() { return x(15, 5); }
+  uint64_t uve_comp_src2() { return x(20, 5); }
+  uint64_t uve_branch_reg() { return x(15, 5); }
+  int64_t uve_branch_imm() { return (x(8, 4) << 1) + (x(22, 6) << 5) + (x(7, 1) << 11) + (imm_sign() << 12); }
 
 private:
   insn_bits_t b;
