@@ -7,11 +7,17 @@
 #include <algorithm>
 #include <numeric>
 #include <variant>
+#include <iostream>
 #include <vector>
 #include <type_traits>
 #include "Helpers.h"
 #include "Dimension.h"
 
+
+/* Necessary for using MMU */
+class processor_t;
+extern processor_t *globalProcessor;
+#define gMMU (*(globalProcessor->get_mmu()))
 
 enum class RegisterType { Temporary, Load, Store, Duplicate };
 enum class RegisterStatus { NotConfigured, Running, Finished };
@@ -182,9 +188,11 @@ private:
   size_t generateOffset()
   {
     /* Result will be the final accumulation of all offset calculated per dimension */
-    return std::accumulate(dimensions.begin(), dimensions.end(), 0, [](size_t acc, Dimension& dim) {
+    std::size_t init = 0;
+    return std::accumulate(dimensions.begin(), dimensions.end(), init, [](size_t acc, Dimension& dim) {
       dim.setEndOfDimension(dim.isLastIteration());
-      return acc + dim.calcOffset(); });
+      return acc + dim.calcOffset(elementsWidth);
+    });
   }
 
   bool isDimensionFullyDone(const std::vector<Dimension>::const_iterator start, const std::vector<Dimension>::const_iterator end) const
@@ -293,16 +301,22 @@ private:
       status = RegisterStatus::Finished;
       return;
     }
-
     elements.clear();
     elements.reserve(maxAmountElements);
 
     std::size_t eCount = maxAmountElements;
     while (eCount > 0 && canGenerateOffset()) {
       std::size_t offset = generateOffset();
-      /* TODO: Change this offset when moving to spike */
-      ElementsType* address = ((ElementsType*)dimensions.at(0).getOffset()) + offset;
-      auto value = readAS<ElementsType>(*address);
+      auto value = [](auto address){
+          if constexpr (std::is_same_v<ElementsType, std::uint8_t>)
+              return readAS<ElementsType>(gMMU.load_uint8(address));
+          else if constexpr (std::is_same_v<ElementsType, std::uint16_t>)
+              return readAS<ElementsType>(gMMU.load_uint16(address));
+          else if constexpr (std::is_same_v<ElementsType, std::uint32_t>)
+              return readAS<ElementsType>(gMMU.load_uint32(address));
+          else
+              return readAS<ElementsType>(gMMU.load_uint64(address));
+      }(offset);
       elements.push_back(value);
 
       eCount--;
@@ -320,12 +334,16 @@ private:
     std::size_t eCount = maxAmountElements;
     while (eCount > 0 && canGenerateOffset()) {
       std::size_t offset = generateOffset();
-      /* TODO: Change this offset when moving to spike */
-      ElementsType* address = ((ElementsType*)dimensions.at(0).getOffset()) + offset;
       auto value = elements.front();
       elements.erase(elements.begin(), elements.begin() + 1);
-      *address = readAS<ElementsType>(value);
-
+      if constexpr (std::is_same_v<ElementsType, std::uint8_t>)
+              gMMU.store_uint8(offset, readAS<ElementsType>(value));
+      else if constexpr (std::is_same_v<ElementsType, std::uint16_t>)
+              gMMU.store_uint16(offset, readAS<ElementsType>(value));
+      else if constexpr (std::is_same_v<ElementsType, std::uint32_t>)
+              gMMU.store_uint32(offset, readAS<ElementsType>(value));
+      else
+              gMMU.store_uint64(offset, readAS<ElementsType>(value));
       eCount--;
       if (canIterate())
         updateIteration();
