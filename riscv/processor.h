@@ -11,6 +11,8 @@
 #include <unordered_map>
 #include <map>
 #include <cassert>
+#include <variant>
+#include <utility>
 #include "debug_rom_defines.h"
 #include "entropy_source.h"
 #include "csrs.h"
@@ -654,5 +656,16 @@ public:
   vectorUnit_t VU;
   StreamingUnit SU;
 };
+
+
+template<typename Operation>
+auto operateRegister(StreamingUnit& SU, std::size_t index, Operation&& op)
+{
+  assert_msg("Tried to use a register index higher than available registers",
+      index < StreamingUnit::registerCount);
+  return std::visit([op = std::move(op)](auto& reg) {
+    return op(reg);
+  }, SU.registers.at(index));
+}
 
 #endif
