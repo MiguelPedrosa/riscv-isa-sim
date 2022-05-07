@@ -359,6 +359,11 @@ private:
 
 };
 
+using StreamReg8 = StreamRegister<std::uint8_t>;
+using StreamReg16 = StreamRegister<std::uint16_t>;
+using StreamReg32 = StreamRegister<std::uint32_t>;
+using StreamReg64 = StreamRegister<std::uint64_t>;
+
 struct StreamingUnit
 {
   /* UVE specification is to have 32 streaming/vectorial registers */
@@ -369,10 +374,7 @@ struct StreamingUnit
   full type-safety when storing/retriving values, including how many elements can
   be contained in a register at a given moment. During computations, we might need
   a raw cast to a signed or floating-point value.  */
-  using RegisterType = std::variant<StreamRegister<std::uint8_t>,
-    StreamRegister<std::uint16_t>,
-    StreamRegister<std::uint32_t>,
-    StreamRegister<std::uint64_t>>;
+  using RegisterType = std::variant<StreamReg8, StreamReg16, StreamReg32, StreamReg64>;
   /* Property defined as public so that this class can be small and have most
   operations happen outside of it */
   std::array<RegisterType, registerCount> registers;
@@ -382,16 +384,16 @@ template <typename T, typename Arg = T>
 auto makeStreamRegister(RegisterType type = RegisterType::Temporary, Arg init = 0)
 {
   if constexpr (std::is_same_v<T, std::uint8_t>) {
-    return StreamRegister<std::uint8_t>{type, readAS<T>(init)};
+    return StreamReg8{type, readAS<T>(init)};
   }
   else if constexpr (std::is_same_v<T, std::uint16_t>) {
-    return StreamRegister<std::uint16_t>{type, readAS<T>(init)};
+    return StreamReg16{type, readAS<T>(init)};
   }
   else if constexpr (std::is_same_v<T, std::uint32_t>) {
-    return StreamRegister<std::uint32_t>{type, readAS<T>(init)};
+    return StreamReg32{type, readAS<T>(init)};
   }
   else if constexpr (std::is_same_v<T, std::uint64_t>) {
-    return StreamRegister<std::uint64_t>{type, readAS<T>(init)};
+    return StreamReg64{type, readAS<T>(init)};
   }
   else {
     static_assert(always_false_v<T>,
