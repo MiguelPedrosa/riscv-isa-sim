@@ -41,6 +41,21 @@ auto baseBehaviour = [](auto& dest, auto& src1, auto& src2, auto extra) {
   dest.setElements(true, out);
 };
 
+/* If the destination register is a temporary, we have to build it before the
+operation so that it's element size matches before any calculations are done */
+const bool makeTemporary = std::visit([](const auto& dest){
+  return dest.getStatus() != RegisterStatus::Running;
+}, destReg);
+if (makeTemporary) {
+  if (std::holds_alternative<StreamReg64>(src1Reg)) {
+    destReg = makeStreamRegister<std::uint64_t>(RegisterType::Temporary);
+  } else if (std::holds_alternative<StreamReg32>(src1Reg)) {
+    destReg = makeStreamRegister<std::uint32_t>(RegisterType::Temporary);
+  } else {
+    assert_msg("Trying to run so.a.add.fp with invalid src type", false);
+  }
+}
+
 std::visit(overloaded {
     [&](StreamReg64& dest, StreamReg64& src1, StreamReg64& src2) { baseBehaviour(dest, src1, src2, double{}); },
     [&](StreamReg32& dest, StreamReg32& src1, StreamReg32& src2) { baseBehaviour(dest, src1, src2, float{}); },
