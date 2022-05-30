@@ -7,13 +7,13 @@ auto& src2Reg = P.SU.registers[insn.uve_comp_src2()];
     later on infer its type and know the storage we need to use */
 auto baseBehaviour = [](auto& dest, auto& src1, auto& src2, auto extra) {
   /* Streams can only output/input values if they are in the running status */
-  const bool runningcheck = src1.getStatus() != RegisterStatus::Finished &&
-    src2.getStatus() != RegisterStatus::Finished;
-  assert_msg("Stream was not configured to be running", runningcheck);
-  if (dest.getType() == RegisterType::Store) {
-    assert_msg("Store destination stream was not running",
-      dest.getStatus() != RegisterStatus::Finished);
-  }
+  // const bool runningcheck = src1.getStatus() != RegisterStatus::Finished &&
+  //   src2.getStatus() != RegisterStatus::Finished;
+  // assert_msg("Stream was not configured to be running", runningcheck);
+  // if (dest.getType() == RegisterType::Store) {
+  //   assert_msg("Store destination stream was not running",
+  //     dest.getStatus() != RegisterStatus::Finished);
+  // }
   /* Each stream's elements must have the same width for content to be
    * operated on */
   const bool src1Check = src1.getType() == RegisterType::Load || src1.getType() == RegisterType::Duplicate;

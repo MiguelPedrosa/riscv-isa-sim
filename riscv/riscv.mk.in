@@ -1270,6 +1270,7 @@ riscv_insn_ext_uve = \
 	ss_ld_d \
 	ss_st_d \
 	so_a_add_fp \
+	so_a_sub_fp \
 	so_a_mul_fp \
 	so_b_nc \
 	ss_end \
